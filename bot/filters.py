@@ -1,19 +1,52 @@
 class LeadFilter:
-    def __init__(self, keywords, priority_scores):
-        self.keywords = keywords  # List of keywords for filtering
-        self.priority_scores = priority_scores  # Dictionary with lead identifiers as keys and priority scores as values
+    def __init__(self):
+        self.high_value_keywords = ['garage cleanout', 'estate cleanout', 'moving debris', 'construction waste', 'hoarder']
+        self.medium_value_keywords = ['junk removal', 'furniture removal', 'appliance removal']
+        self.negative_keywords = ['curbside', 'free dirt', 'scrap metal only', 'donation pickup']
 
-    def filter_leads(self, leads):
-        filtered_leads = []
-        for lead in leads:
-            score = self.get_priority_score(lead['id'])
-            if self.matches_keywords(lead['description']):
-                filtered_leads.append((lead, score))
-        return filtered_leads
+    def process(self, lead):
+        """
+        Process a lead and determine if it passes filters
+        Returns filtered lead with priority score or None if filtered out
+        """
+        text = (lead.get('title', '') + ' ' + lead.get('description', '')).lower()
+        
+        # Check negative keywords first
+        for keyword in self.negative_keywords:
+            if keyword in text:
+                return None
+        
+        # Calculate priority score
+        score = self._calculate_score(text, lead)
+        
+        if score < 30:
+            return None
+        
+        # Add score to lead
+        lead['priority_score'] = score
+        lead['status'] = 'new'
+        return lead
 
-    def get_priority_score(self, lead_id):
-        return self.priority_scores.get(lead_id, 0)  # Default to 0 if not found
-
-    def matches_keywords(self, description):
-        return any(keyword in description for keyword in self.keywords  # Check if any keyword is present in the description
-        )
+    def _calculate_score(self, text, lead):
+        """Calculate priority score 0-100"""
+        score = 0
+        
+        # High-value keywords: 30 points each
+        for keyword in self.high_value_keywords:
+            if keyword in text:
+                score += 30
+                break
+        
+        # Medium-value keywords: 15 points each
+        for keyword in self.medium_value_keywords:
+            if keyword in text:
+                score += 15
+                break
+        
+        # Location bonus for high-value zip codes
+        location = lead.get('location', '').upper()
+        tier_1_zips = ['45040', '45069', '45243', '45208', '41017', '41091', '45140', '45039']
+        if any(zip_code in location for zip_code in tier_1_zips):
+            score += 40
+        
+        return min(score, 100)  # Cap at 100
